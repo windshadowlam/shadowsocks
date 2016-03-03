@@ -26,6 +26,22 @@ class DbTransfer(object):
 		return DbTransfer.instance
 
 	def push_db_all_user(self):
+# 		logging.warning('Watch out!')
+		conn = cymysql.connect(host=Config.MYSQL_HOST, port=Config.MYSQL_PORT, user=Config.MYSQL_USER,passwd=Config.MYSQL_PASS, db=Config.MYSQL_DB, charset='utf8')
+		cur = conn.cursor()
+		nodequery = 'SELECT id, traffic_rate FROM `ss_node`'
+		nodenamequery = """ WHERE name = '""" + Config.MANAGE_NODE_NAME+"""'"""
+		nodesql = nodequery + nodenamequery
+# 		logging.warning(nodesql)
+		cur.execute(nodesql)
+		for r in cur.fetchall():
+			Config.MYSQL_TRANSFER_MUL = r[1]
+			Config.MANAGE_NODE_ID = r[0]
+# 			logging.warning('r[0]%s' % r[0])
+			
+		cur.close()
+		conn.close()
+# 		logging.warning('Watch out End! %s' % Config.MYSQL_TRANSFER_MUL)
 		#更新用户流量到数据库
 		last_transfer = self.last_get_transfer
 		curr_transfer = ServerPool.get_instance().get_servers_transfer()
@@ -71,11 +87,27 @@ class DbTransfer(object):
 					' END, d = CASE port' + query_sub_when2 + \
 					' END, t = ' + str(int(last_time)) + \
 					' WHERE port IN (%s)' % query_sub_in
-		#print query_sql
+# 		logging.warning("time.time() %s" % time.time())
+# 		logging.warning("id %s" % id)
+# 		logging.warning("dt_transfer[id][0] %s" % dt_transfer[id][0])
+# 		logging.warning("dt_transfer[id][1] %s" % dt_transfer[id][1])
+# 		logging.warning("query_sql:"+query_sql)
+		record_sql_head = 'INSERT INTO `admin_ss`.`user_traffic_log` (`user_id`, `u`, `d`, `node_id`, `rate`, `traffic`, `log_time`) VALUES ('
+		record_sql_userid = '%s, ' % id
+		record_sql_useru = '%s, ' % (dt_transfer[id][0]/Config.MYSQL_TRANSFER_MUL)
+		record_sql_userd = '%s, ' % (dt_transfer[id][1]/Config.MYSQL_TRANSFER_MUL)
+		record_sql_usernode = '%s, ' % int(Config.MANAGE_NODE_ID)
+		record_sql_userrate = '%f, ' % Config.MYSQL_TRANSFER_MUL
+		record_sql_usertxrx = '%s+%s,' % (dt_transfer[id][0],dt_transfer[id][1])
+		record_sql_userlogtime = '%s' % int(time.time())
+		record_sql_tail = ')'
+		record_sql = record_sql_head+record_sql_userid+record_sql_useru+record_sql_userd+record_sql_usernode+record_sql_userrate+record_sql_usertxrx+record_sql_userlogtime+record_sql_tail
+# 		logging.warning("record_sql:"+record_sql)
 		conn = cymysql.connect(host=Config.MYSQL_HOST, port=Config.MYSQL_PORT, user=Config.MYSQL_USER,
 								passwd=Config.MYSQL_PASS, db=Config.MYSQL_DB, charset='utf8')
 		cur = conn.cursor()
 		cur.execute(query_sql)
+		cur.execute(record_sql)
 		cur.close()
 		conn.commit()
 		conn.close()
